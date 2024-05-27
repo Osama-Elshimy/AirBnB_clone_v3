@@ -1,30 +1,38 @@
 #!/usr/bin/python3
 """
-Fabric script based on the file 1-pack_web_static.py that distributes an
-archive to the web servers
+Fabric script that uploads an archive to the web servers
+execute:
+    fab -f 2-do_deploy_web_static.py do_pack:archive_path=<path> -i <ssh_key>
 """
 
+import os
 from fabric.api import put, run, env
-from os.path import exists
-env.hosts = ['142.44.167.228', '144.217.246.195']
+
+env.user = 'ubuntu'
+env.hosts = ['34.224.62.175', '54.157.181.100']
 
 
 def do_deploy(archive_path):
-    """distributes an archive to the web servers"""
-    if exists(archive_path) is False:
+    """Uploads an archive to the web servers"""
+    if not os.path.exists(archive_path):
         return False
+
+    archive_fullname = archive_path.split('/')[-1]
+    archive_tmp_path = "/tmp/{}".format(archive_fullname)
+    archive_name = archive_fullname.split('.')[0]
+    release_path = "/data/web_static/releases/{}".format(archive_name)
+
     try:
-        file_n = archive_path.split("/")[-1]
-        no_ext = file_n.split(".")[0]
-        path = "/data/web_static/releases/"
-        put(archive_path, '/tmp/')
-        run('mkdir -p {}{}/'.format(path, no_ext))
-        run('tar -xzf /tmp/{} -C {}{}/'.format(file_n, path, no_ext))
-        run('rm /tmp/{}'.format(file_n))
-        run('mv {0}{1}/web_static/* {0}{1}/'.format(path, no_ext))
-        run('rm -rf {}{}/web_static'.format(path, no_ext))
-        run('rm -rf /data/web_static/current')
-        run('ln -s {}{}/ /data/web_static/current'.format(path, no_ext))
+        put(archive_path, archive_tmp_path)
+        # ex: /data/web_static/releases/web_static_20240505004540
+        run("mkdir -p {}".format(release_path))
+        unpack = 'tar -xzf {} -C {} --strip-components=1'.format(
+            archive_tmp_path, release_path
+        )
+        run(unpack)
+        run("rm {}".format(archive_tmp_path))
+        run("rm -rf /data/web_static/current")
+        run("ln -sf {} /data/web_static/current".format(release_path))
         return True
-    except:
+    except Exception:
         return False
